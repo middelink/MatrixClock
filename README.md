@@ -1,0 +1,2 @@
+# hwMatrixClock
+MatrixClock code + kicad
