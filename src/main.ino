@@ -228,7 +228,7 @@ void Sensors() {
     switch (bme) {
 #ifdef HAS_BME280
         case ENV_BME280: {
-                    bme280.read(sensors.pres, sensors.temp, sensors.hum, BME280::TempUnit_Celcius, BME280::PresUnit_hPa);
+                    bme280.read(sensors.pres, sensors.temp, sensors.hum, BME280::TempUnit_Celsius, BME280::PresUnit_hPa);
                     sensors.gas_r = NAN;
                 }
                 break;
@@ -243,7 +243,7 @@ void Sensors() {
                 }
 #endif
     }
-    sensors.dew = EnvironmentCalculations::DewPoint(sensors.temp, sensors.hum, /*metric=*/true);
+    sensors.dew = EnvironmentCalculations::DewPoint(sensors.temp, sensors.hum, EnvironmentCalculations::TempUnit_Celsius);
 #endif
 
 #if defined(HAS_APDS9301) || defined(HAS_BH1750)
@@ -474,7 +474,7 @@ void setup() {
                             bme = ENV_BME680;
                         }
                     } else {
-                        Serial.printf("BME280: chipid=%02x\n", bme280.chipID());
+                        Serial.printf("BME280: chip=%02x\n", bme280.chipModel());
                         bme = ENV_BME280;
                     }
                     break;
