@@ -350,6 +350,10 @@ bool wifi_setup() {
 
     setString("Wifi...");
     WiFiManager wifiManager;
+    // Set a long timeout, last night I rebooted my AP and all the
+    // sensors jumped into AP mode due to lack of connection and I had
+    // to manually reset them. Ouch.
+    wifiManager.setTimeout(5*60);
     wifiManager.setAPCallback([](WiFiManager *wifi) {
         setString("Wifi AP");
     });

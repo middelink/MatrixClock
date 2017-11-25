@@ -19,3 +19,7 @@ _autosave-*
 # Exported BOM files
 *.xml
 *.csv
+
+# PlatformIO
+.piolibdeps
+.pioenvs
