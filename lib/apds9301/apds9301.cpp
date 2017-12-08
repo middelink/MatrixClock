@@ -13,6 +13,7 @@
 //-------------------------------------------------------------------------------
 LuxI2C_APDS9301::LuxI2C_APDS9301( uint8_t i2c_addr)
 {
+// This library requires you to initialize i2c yourself.
 //    Wire.begin();
 
     m_u8I2CAddr = i2c_addr;
@@ -25,58 +26,54 @@ float LuxI2C_APDS9301::getLux()
      * Empiric formulas from datasheet
         CH1/CH0			        Sensor Lux Formula
         ========================================================================================
-        0 < CH1/CH0 ≤ 0.50	    Sensor Lux = (0.0304 x CH0) – (0.062 x CH0 x ((CH1/CH0)^1.4))
+        0 < CH1/CH0 ≤ 0.50      Sensor Lux = (0.0304 x CH0) – (0.062 x CH0 x ((CH1/CH0)^1.4))
         0.50 < CH1/CH0 ≤ 0.61	Sensor Lux = (0.0224 x CH0) – (0.031 x CH1)
         0.61 < CH1/CH0 ≤ 0.80	Sensor Lux = (0.0128 x CH0) – (0.0153 x CH1)
         0.80 < CH1/CH0 ≤ 1.30	Sensor Lux = (0.00146 x CH0) – (0.00112 x CH1)
-        CH1/CH0>1.30		    Sensor Lux = 0
+        CH1/CH0>1.30            Sensor Lux = 0
      */
     float CH0 = getReg(Data0_reg);
     float CH1 = getReg(Data1_reg);
-    IntegrationTime integration_time = getIntegrationTime();
-    ADCGain gain = getADCGain();
-    float ChannelRatio = (float)CH1/CH0;
+    float ChannelRatio = CH1/CH0;
 
     // Adjust channel values for integration time
-    switch (integration_time) {
-	    case IntegrationTime::low_time:
-		    CH0 *= 322.0/11;
-		    CH1 *= 322.0/11;
-		    break;
-	    case IntegrationTime::medium_time:
-		    CH0 *= 322.0/81;
-		    CH1 *= 322.0/81;
-		    break;
-	    case IntegrationTime::high_time:
-		    CH0 *= 322.0/322;
-		    CH1 *= 322.0/322;
-		    break;
-	    case IntegrationTime::manual:
-		    /* you're on your own dude. */
-		    return NAN;
+    switch (getIntegrationTime()) {
+        case IntegrationTime::low_time:
+            CH0 *= 322.0/11;
+            CH1 *= 322.0/11;
+            break;
+        case IntegrationTime::medium_time:
+            CH0 *= 322.0/81;
+            CH1 *= 322.0/81;
+            break;
+        case IntegrationTime::high_time:
+            CH0 *= 322.0/322;
+            CH1 *= 322.0/322;
+            break;
+        case IntegrationTime::manual:
+            /* no scaling will be done, results are indeterminate */
+	    break;
     }
+
     // Adjust for gain
-    switch (gain) {
-	    case ADCGain::low_gain:
-		    break;
-	    case ADCGain::high_gain:
-		    CH0 /= 16;
-		    CH1 /= 16;
-		    break;
+    switch (getADCGain()) {
+        case ADCGain::low_gain:
+            break;
+        case ADCGain::high_gain:
+            CH0 /= 16;
+            CH1 /= 16;
+            break;
     }
 
-    
-    float Result = 0;
     if(ChannelRatio <= 0.5F)
-        Result = (0.0304 * CH0) - ((0.062 * CH0) * pow(CH1/CH0, 1.4));
-    else if(ChannelRatio <= 0.61F)
-        Result = (0.0224 * CH0) - (0.031 * CH1);
-    else if(ChannelRatio <= 0.80F)
-        Result = (0.0128 * CH0) - (0.0153 * CH1);
-    else if(ChannelRatio <= 1.30F)
-        Result = (0.00146 * CH0) - (0.00112 * CH1);
-
-    return Result;
+        return (0.0304 * CH0) - ((0.062 * CH0) * pow(CH1/CH0, 1.4));
+    if(ChannelRatio <= 0.61F)
+        return (0.0224 * CH0) - (0.031 * CH1);
+    if(ChannelRatio <= 0.80F)
+        return (0.0128 * CH0) - (0.0153 * CH1);
+    if(ChannelRatio <= 1.30F)
+        return (0.00146 * CH0) - (0.00112 * CH1);
+    return 0.0F;
 }
 
 //-------------------------------------------------------------------------------
