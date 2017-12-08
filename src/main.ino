@@ -14,19 +14,16 @@
 #include <WiFiManager.h> 
 #include <PubSubClient.h>
 #include <Bounce2.h>
-#include <apds9301.h>
+#include "apds9301.h"
 #include <Adafruit_BME680.h>
 #include <BH1750.h>
 #include <BME280I2C.h>
 #include <EnvironmentCalculations.h>
 
-#define HAS_APDS9301  // Lux meter
-#define HAS_BH1750    // Lux meter
+#define HAS_APDS9301  // Light meter
+#define HAS_BH1750    // Light meter
 #define HAS_BME280    // Env meter
 #define HAS_BME680    // Env meter + gas
-
-#define APP_NAME    "LedNTP"
-#define APP_VERSION "0.3.5"
 
 /* constants */
 constexpr auto _SDA = 5;
@@ -35,9 +32,6 @@ constexpr auto _SCL = 4;
 constexpr char tz[] = "TZ=CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00";
 
 constexpr auto BUTTON = 12;
-
-/* forward reference */
-void mqtt_subscribe(char*, unsigned char*, unsigned int);
 
 /* global variables */
 MD_MAX72XX leds(SS, 5);
@@ -91,23 +85,10 @@ Adafruit_BME680 bme680;
 #endif
 String mqtt_prefix;
 WiFiClient wificlient;
-PubSubClient mqtt("", 0, mqtt_subscribe, wificlient);
+PubSubClient mqtt("", 0, wificlient);
 
 // Setup ESP to measure VCC
 ADC_MODE(ADC_VCC);
-
-extern "C" {
-extern const unsigned char data_index_html_gz[];
-extern const unsigned int data_index_html_gz_len;
-}
-
-void mqtt_subscribe(char* topic, unsigned char* payload, unsigned int len) {
-    Serial.print("MQTT Subscribe(");
-    Serial.print(topic);
-    Serial.print(",");
-    Serial.write(payload, len);
-    Serial.println(")");
-}
 
 void setString(const char* msg) {
     int offset = leds.getColumnCount()-1;
@@ -196,14 +177,7 @@ void showTime(void) {
     leds.control(MD_MAX72XX::UPDATE, MD_MAX72XX::ON);
 }
 
-void Sensors() {
-#if MQTT_MAX_PACKET_SIZE < 256
-#error "Please define MQTT_MAX_PACKET_SIZE larger or equal to 256."
-#endif
-    StaticJsonBuffer<200> jsonBuffer;
-    JsonObject& root = jsonBuffer.createObject();
-    root["id"] = String(ESP.getChipId(), HEX);
-
+void readSensors() {
     sensors.volt = ESP.getVcc()/1024.0;
 
 #if defined(HAS_APDS9301) || defined(HAS_BH1750)
@@ -245,6 +219,14 @@ void Sensors() {
     }
     sensors.dew = EnvironmentCalculations::DewPoint(sensors.temp, sensors.hum, EnvironmentCalculations::TempUnit_Celsius);
 #endif
+}
+
+void writeSensors() {
+#if MQTT_MAX_PACKET_SIZE < 256
+#error "Please define MQTT_MAX_PACKET_SIZE larger or equal to 256."
+#endif
+    StaticJsonBuffer<200> jsonBuffer;
+    JsonObject& root = jsonBuffer.createObject();
 
 #if defined(HAS_APDS9301) || defined(HAS_BH1750)
     if (!isnan(sensors.lux)) {
@@ -271,7 +253,6 @@ void Sensors() {
     if (!mqtt.publish((mqtt_prefix+"/pressure").c_str(), String(sensors.pres).c_str())) {
         Serial.println("Publish pressure failed");
     }
-#endif
 #ifdef HAS_BME680
     if (!isnan(sensors.gas_r) && sensors.gas_r > 1.0) {
         root["gas_resistance"] = sensors.gas_r;
@@ -279,6 +260,7 @@ void Sensors() {
             Serial.println("Publish gas_resistance failed");
         }
     }
+#endif
 #endif
     root["voltage"] = sensors.volt;
     if (!mqtt.publish((mqtt_prefix+"/voltage").c_str(), String(sensors.volt).c_str())) {
@@ -288,6 +270,7 @@ void Sensors() {
     if (!mqtt.publish((mqtt_prefix+"/reset_reason").c_str(), ESP.getResetReason().c_str())) {
         Serial.println("Publish reset failed");
     }
+    root["id"] = String(ESP.getChipId(), HEX);
     String json;
     root.printTo(json);
     if (!mqtt.publish((mqtt_prefix+"/json").c_str(), json.c_str())) {
@@ -309,13 +292,14 @@ bool mqtt_setup() {
         setString("Mqtt OK");
         return true;
     }
+    setString("Mqtt BAD");
     Serial.print("failed, rc=");
     Serial.println(mqtt.state());
     return false;
 }
 
 bool wifi_setup() {
-    //read configuration from FS json
+    //read configuration from FS (json)
     Serial.println("mounting FS...");
     if (SPIFFS.begin()) {
         Serial.println("mounted file system");
@@ -379,6 +363,7 @@ bool wifi_setup() {
         // Reset and try again, or maybe put it to deep sleep
         ESP.reset();
         delay(5000);
+        return false;
     }
 
     // Read updated parameters
@@ -441,21 +426,29 @@ void setup() {
                 case 0x29:
                 case 0x39:
                 case 0x49:
-                    lux = LUX_APDS9301;
-                    apds.powerOn();
-                    apds.setADCGain(LuxI2C_APDS9301::low_gain);
-                    // apds.setIntegrationTime(LuxI2C_APDS9301::low_time);
-                    // apds.setIntegrationTime(LuxI2C_APDS9301::medium_time);
-                    apds.setIntegrationTime(LuxI2C_APDS9301::high_time);
-                    Serial.printf("APDS-9301: part=%02x, rev=%02x\n", apds.getPartNum(), apds.getRevNum());
+                    if (lux == LUX_UNKNOWN) {
+                        lux = LUX_APDS9301;
+                        apds.powerOn();
+                        apds.setADCGain(LuxI2C_APDS9301::low_gain);
+                        // apds.setIntegrationTime(LuxI2C_APDS9301::low_time);
+                        // apds.setIntegrationTime(LuxI2C_APDS9301::medium_time);
+                        apds.setIntegrationTime(LuxI2C_APDS9301::high_time);
+                        Serial.printf("APDS-9301: part=%02x, rev=%02x\n", apds.getPartNum(), apds.getRevNum());
+                    } else {
+                        Serial.println("Skipping APDS-9301");
+                    }
                     break;
 #endif
 #ifdef HAS_BH1750
                 case 0x23:
                 case 0x5C:
-                    lux = LUX_BH1750;
-                    bh.begin();
-                    Serial.println("BH1750FVI");
+                    if (lux == LUX_UNKNOWN) {
+                        lux = LUX_BH1750;
+                        bh.begin();
+                        Serial.println("BH1750FVI");
+                    } else {
+                        Serial.println("Skipping BH1750FVI");
+                    }
                     break;
 #endif
 #if defined(HAS_BME280) || defined(HAS_BME680)
@@ -560,15 +553,20 @@ void loop() {
             }
             return;
         }
+    }
 
-        // Tick-tock on the state machine
-        if (delay_next_sensors < now) {
-            delay_next_sensors = now + 5*60*1000;
+    // Tick-tock on the state machine
+    if (delay_next_sensors < now) {
+        delay_next_sensors = now + 5*60*1000;
 
-            Sensors();
+        // Always read the sensors, but only write them to mqtt if we have a server.
+        readSensors();
+        if (mqtt_server.length()) {
+            writeSensors();
         }
     }
 
+    // Check for button changes.
     if (bouncy.rose()) {
         press_time = now;
     } else if (bouncy.fell()) {
