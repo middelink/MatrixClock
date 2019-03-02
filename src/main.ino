@@ -78,7 +78,7 @@ BME280I2C bme280(BME280I2C::Settings{
     /*st=*/BME280::StandbyTime_1000ms,
     /*filter=*/BME280::Filter_Off,
     /*spiEnable=*/BME280::SpiEnable_False,
-    /*bme_280_addr=*/0x76});
+    /*bme_280_addr=*/BME280I2C::I2CAddr::I2CAddr_0x76});
 #endif
 #ifdef HAS_BME680
 Adafruit_BME680 bme680;
@@ -215,7 +215,11 @@ void readSensors() {
                     sensors.pres = bme680.pressure / 100.0;
                     sensors.gas_r = bme680.gas_resistance;
                 }
+                break;
 #endif
+        case ENV_UNKNOWN:
+                /* ignore */
+                break;
     }
     sensors.dew = EnvironmentCalculations::DewPoint(sensors.temp, sensors.hum, EnvironmentCalculations::TempUnit_Celsius);
 #endif
@@ -337,7 +341,8 @@ bool wifi_setup() {
     // Set a long timeout, last night I rebooted my AP and all the
     // sensors jumped into AP mode due to lack of connection and I had
     // to manually reset them. Ouch.
-    wifiManager.setTimeout(5*60);
+    wifiManager.setConfigPortalTimeout(90);
+    wifiManager.setConnectTimeout(90);
     wifiManager.setAPCallback([](WiFiManager *wifi) {
         setString("Wifi AP");
     });
@@ -356,6 +361,8 @@ bool wifi_setup() {
     ticker1.attach_ms(1000, showTime);
     if (res) {
         setString("Wifi OK");
+        // It seems AP stays on after we left the portal.
+        WiFi.mode(WIFI_STA);
     } else {
         setString("Wifi BAD");
         Serial.println("failed to connect or hit timeout");
@@ -598,6 +605,16 @@ void loop() {
                 }
                 Serial.println();
             }
+            break;
+         case 's':
+            readSensors();
+            Serial.printf("volt=%.2f", sensors.volt);
+            Serial.printf(", lux=%.2f", sensors.lux);
+            Serial.printf(", temp=%.2f", sensors.temp);
+            Serial.printf(", hum=%.2f", sensors.hum);
+            Serial.printf(", dew=%.2f", sensors.dew);
+            Serial.printf(", pres=%.2f", sensors.pres);
+            Serial.printf(", gas=%.2f\n", sensors.gas_r);
             break;
         }
     }

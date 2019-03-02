@@ -27,7 +27,7 @@ MatrixClock project.
 * Adafruit's BME680 library has the nasty habbit of initializing the Wire
   library instead of leaving that to the calling program. This means they
   override our carefully set non-standard I2C pins. Needs to be commented
-  out around line 90 in Adafruit\_BME680.cpp.
+  out around line 104 in Adafruit\_BME680.cpp.
 * Same library, Adafruit\_BME680.h, you want to comment out the include of
   Adafruit\_sensor.h. Not there, not used, not needed.
 
