@@ -1,6 +1,7 @@
 # MatrixClock
 
 [![License](https://img.shields.io/github/license/middelink/MatrixClock.svg)](https://github.com/middelink/MatrixClock/blob/master/LICENSE)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fmiddelink%2FMatrixClock.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fmiddelink%2FMatrixClock?ref=badge_shield)
 
 ## TL;DR
 
@@ -45,3 +46,7 @@ just mentioned area's.
 
 Good luck!
   Pauline
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fmiddelink%2FMatrixClock.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fmiddelink%2FMatrixClock?ref=badge_large)
